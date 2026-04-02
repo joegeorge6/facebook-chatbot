@@ -24,9 +24,12 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
     const body = req.body;
+    console.log('Event:', JSON.stringify(body).substring(0, 500));
+
     try {
         if (body.object === 'page') {
             for (const entry of body.entry) {
+                // Facebook Messages
                 if (entry.messaging) {
                     for (const event of entry.messaging) {
                         if (event.message && !event.message.is_echo) {
@@ -37,10 +40,33 @@ app.post('/webhook', async (req, res) => {
                         }
                     }
                 }
+                // Facebook Comments
                 if (entry.changes) {
                     for (const change of entry.changes) {
                         if (change.field === 'feed' && change.value.item === 'comment') {
                             await handlePageComment(change.value);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Instagram Events
+        if (body.object === 'instagram') {
+            for (const entry of body.entry) {
+                // Instagram DM Messages
+                if (entry.messaging) {
+                    for (const event of entry.messaging) {
+                        if (event.message && !event.message.is_echo) {
+                            await handleInstagramMessage(event);
+                        }
+                    }
+                }
+                // Instagram Comments
+                if (entry.changes) {
+                    for (const change of entry.changes) {
+                        if (change.field === 'comments') {
+                            await handleInstagramComment(change.value);
                         }
                     }
                 }
@@ -52,9 +78,11 @@ app.post('/webhook', async (req, res) => {
     res.status(200).send('EVENT_RECEIVED');
 });
 
+// ============ Facebook Messenger ============
 async function handleMessage(event) {
     const senderId = event.sender.id;
     const text = event.message.text || '';
+    console.log('FB Message: ' + text);
     const reply = generateReply(text);
     await sendMessage(senderId, reply);
 }
@@ -68,6 +96,7 @@ async function handlePageComment(value) {
     const pageId = postId.split('_')[0];
     if (senderId === pageId) return;
     if (value.parent_id) return;
+    console.log('FB Comment: ' + message);
     const reply = generateReply(message);
     await replyToComment(commentId, senderName + ' ' + reply);
     try {
@@ -85,6 +114,30 @@ async function handlePostback(event) {
     await sendMessage(senderId, reply);
 }
 
+// ============ Instagram DM ============
+async function handleInstagramMessage(event) {
+    const senderId = event.sender.id;
+    const text = event.message.text || '';
+    console.log('IG Message: ' + text);
+    const reply = generateReply(text);
+    await sendInstagramMessage(senderId, reply);
+}
+
+// ============ Instagram Comments ============
+async function handleInstagramComment(value) {
+    var commentId = value.id;
+    var message = value.text || '';
+    var mediaId = value.media ? value.media.id : '';
+    console.log('IG Comment: ' + message);
+
+    // متردش على ردود (replies)
+    if (value.parent_id) return;
+
+    var reply = generateReply(message);
+    await replyToInstagramComment(commentId, reply);
+}
+
+// ============ Smart Reply ============
 function generateReply(message) {
     if (!message) return 'اهلا بيك! ازاي اقدر اساعدك؟';
     var msg = message.toLowerCase().trim();
@@ -109,6 +162,7 @@ function generateReply(message) {
     return 'شكرا لرسالتك! هيتم الرد عليك في اقرب وقت.\nللمساعدة: 01XXXXXXXXX';
 }
 
+// ============ Send Functions ============
 async function sendMessage(recipientId, text) {
     try {
         await axios.post('https://graph.facebook.com/v18.0/me/messages', {
@@ -116,8 +170,22 @@ async function sendMessage(recipientId, text) {
             message: { text: text },
             messaging_type: 'RESPONSE'
         }, { params: { access_token: PAGE_ACCESS_TOKEN } });
+        console.log('FB Message sent!');
     } catch (error) {
-        console.error('Send error:', error.response ? error.response.data : error.message);
+        console.error('FB Send error:', error.response ? error.response.data : error.message);
+    }
+}
+
+async function sendInstagramMessage(recipientId, text) {
+    try {
+        await axios.post('https://graph.facebook.com/v18.0/me/messages', {
+            recipient: { id: recipientId },
+            message: { text: text },
+            messaging_type: 'RESPONSE'
+        }, { params: { access_token: PAGE_ACCESS_TOKEN } });
+        console.log('IG Message sent!');
+    } catch (error) {
+        console.error('IG Send error:', error.response ? error.response.data : error.message);
     }
 }
 
@@ -126,8 +194,20 @@ async function replyToComment(commentId, message) {
         await axios.post('https://graph.facebook.com/v18.0/' + commentId + '/comments', {
             message: message
         }, { params: { access_token: PAGE_ACCESS_TOKEN } });
+        console.log('FB Comment reply sent!');
     } catch (error) {
-        console.error('Comment error:', error.response ? error.response.data : error.message);
+        console.error('FB Comment error:', error.response ? error.response.data : error.message);
+    }
+}
+
+async function replyToInstagramComment(commentId, message) {
+    try {
+        await axios.post('https://graph.facebook.com/v18.0/' + commentId + '/replies', {
+            message: message
+        }, { params: { access_token: PAGE_ACCESS_TOKEN } });
+        console.log('IG Comment reply sent!');
+    } catch (error) {
+        console.error('IG Comment error:', error.response ? error.response.data : error.message);
     }
 }
 
@@ -139,12 +219,13 @@ async function sendPrivateReply(commentId, message) {
     }, { params: { access_token: PAGE_ACCESS_TOKEN } });
 }
 
-// Keep Alive - يخلي السيرفر صاحي
+// Keep Alive
+var SELF_URL = 'https://nervous-annis-fashionistaaccessories-4f8d521e.koyeb.app/';
 setInterval(function() {
-    axios.get('https://nervous-annis-fashionistaaccessories-4f8d521e.koyeb.app/')
+    axios.get(SELF_URL)
         .then(function() { console.log('Keep alive ping'); })
         .catch(function() {});
-}, 300000);
+}, 280000);
 
 var PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', function() {
