@@ -139,6 +139,13 @@ async function sendPrivateReply(commentId, message) {
     }, { params: { access_token: PAGE_ACCESS_TOKEN } });
 }
 
+// Keep Alive - يخلي السيرفر صاحي
+setInterval(function() {
+    axios.get('https://nervous-annis-fashionistaaccessories-4f8d521e.koyeb.app/')
+        .then(function() { console.log('Keep alive ping'); })
+        .catch(function() {});
+}, 300000);
+
 var PORT = process.env.PORT || 8000;
 app.listen(PORT, '0.0.0.0', function() {
     console.log('Bot running on port ' + PORT);
