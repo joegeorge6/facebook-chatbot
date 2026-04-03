@@ -10,6 +10,10 @@ app.get('/', (req, res) => {
     res.json({ status: 'Bot is running!' });
 });
 
+app.get('/privacy', (req, res) => {
+    res.send('<h1>Privacy Policy</h1><p>This bot collects messages to provide automated replies. We do not store or share your data.</p>');
+});
+
 app.get('/webhook', (req, res) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
